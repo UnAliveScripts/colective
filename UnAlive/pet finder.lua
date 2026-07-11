@@ -1,6 +1,6 @@
 -- == UnAlive Pet Finder + Auto Buy [STANDALONE] ==
 -- Full auto-buy pet finder: GUI, per-server limits, tween approach, server hop.
--- Set WEBHOOK_URL below for notifications.
+-- 🔒 User-locked to rockytheboy515 only.
 
 local WEBHOOK_URL = ""
 
@@ -11,6 +11,12 @@ assert(typeof(request) == "function" and typeof(isfile) == "function" and typeof
 local Players = game:GetService("Players"); local TS = game:GetService("TweenService"); local TPS = game:GetService("TeleportService"); local HS = game:GetService("HttpService"); local RS = game:GetService("ReplicatedStorage")
 repeat task.wait() until game:IsLoaded() and Players.LocalPlayer
 local LP = Players.LocalPlayer; if game.PlaceId ~= 97598239454123 then return end
+
+-- 🔒 User lock
+if LP.Name ~= "rockytheboy515" then
+    game:GetService("StarterGui"):SetCore("SendNotification", { Title = "Locked", Text = "This script only works for rockytheboy515", Duration = 8 })
+    return
+end
 
 -- Press-any-key helpers
 local function pressBurst()
