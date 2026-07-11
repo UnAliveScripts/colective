@@ -1,6 +1,6 @@
 -- == UnAlive Pet Scanner + Webhook [STANDALONE] ==
 -- Scans wild pets, sends Discord webhook for high-rarity finds, then server hops.
--- Set WEBHOOK_URL and MIN_RARITY below.
+-- Set WEBHOOK_URL and MIN_RARITY below. 🔒 Locked to rockytheboy515.
 
 local WEBHOOK_URL = ""
 local MIN_RARITY = "Legendary"
@@ -15,6 +15,12 @@ repeat task.wait() until game:IsLoaded()
 local LocalPlayer = Players.LocalPlayer
 local PLACE_ID = game.PlaceId
 local JOB_ID = game.JobId
+
+-- 🔒 User lock
+if LocalPlayer.Name ~= "rockytheboy515" then
+    game:GetService("StarterGui"):SetCore("SendNotification", { Title = "Locked", Text = "This script only works for rockytheboy515", Duration = 8 })
+    return
+end
 
 local RARITY_ORDER = { Common = 1, Uncommon = 2, Rare = 3, Epic = 4, Super = 5, Legendary = 6, Mythic = 7 }
 
