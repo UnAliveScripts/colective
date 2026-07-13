@@ -1,0 +1,231 @@
+-- place in auto execute and set webhook
+
+local WEBHOOK_URL = ""
+local MIN_RARITY = "Legendary"
+
+if syn and syn.request then request = syn.request end
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+
+repeat task.wait() until game:IsLoaded()
+local LocalPlayer = Players.LocalPlayer
+
+local PLACE_ID = game.PlaceId
+local JOB_ID = game.JobId
+
+local RARITY_ORDER = {
+  ["Common"] = 1,
+  ["Uncommon"] = 2,
+  ["Rare"] = 3,
+  ["Epic"] = 4,
+  ["Super"] = 5,
+  ["Legendary"] = 6,
+  ["Mythic"] = 7,
+}
+
+local RARITIES = {
+  ["Bunny"] = "Common",
+  ["Frog"] = "Common",
+  ["Owl"] = "Uncommon",
+  ["Raccoon"] = "Super",
+  ["Monkey"] = "Mythic",
+  ["Robin"] = "Legendary",
+  ["Deer"] = "Rare",
+  ["Bee"] = "Legendary",
+  ["Unicorn"] = "Mythic",
+  ["Golden Dragonfly"] = "Mythic",
+  ["Bear"] = "Mythic",
+  ["Black Dragon"] = "Super",
+  ["Ice Serpent"] = "Super",
+}
+
+local RARITY_EMOJIS = {
+  ["Common"] = "⚪",
+  ["Uncommon"] = "🟢",
+  ["Rare"] = "🔵",
+  ["Epic"] = "🟣",
+  ["Legendary"] = "🟠",
+  ["Mythic"] = "🔴",
+  ["Super"] = "🟣",
+}
+
+local GearImages = ReplicatedStorage:FindFirstChild("SharedModules") and ReplicatedStorage.SharedModules:FindFirstChild("GearImages")
+
+local function CleanPetName(RawName)
+  local Name = RawName
+  Name = Name:gsub("WildPet_", "")
+  Name = Name:gsub("_WildPet", "")
+  Name = Name:gsub("_[%w]+%-[%w]+%-[%w]+%-[%w]+%-[%w]+$", "")
+  return Name
+end
+
+local function GetRarity(PetName)
+  return RARITIES[PetName] or "Unknown"
+end
+
+local function GetTimeRemaining(Pet)
+  local RootPart = Pet:FindFirstChild("RootPart")
+  if RootPart then
+    local PetLeaveTimer = RootPart:FindFirstChild("PetLeaveTimer")
+    if PetLeaveTimer then
+      local TextLabel = PetLeaveTimer:FindFirstChild("TextLabel")
+      if TextLabel then
+        return TextLabel.Text
+      end
+    end
+  end
+  return "N/A"
+end
+
+local function GetPrice(Pet)
+  for _, Child in ipairs(Pet:GetDescendants()) do
+    if Child:IsA("TextLabel") then
+      local Text = Child.Text
+      if Text:find("¢") or Text:find("Coin") or Text:find("$") then
+        return Text
+      end
+    end
+  end
+  return "N/A"
+end
+
+local function GetPetImage(PetName)
+  if not GearImages then return nil end
+
+  local ImageObj = GearImages:FindFirstChild(PetName)
+  if ImageObj and ImageObj:IsA("StringValue") then
+    local AssetId = ImageObj.Value:match("rbxassetid://(%d+)")
+    if AssetId then
+      local Response = request({
+        Url = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. AssetId .. "&size=420x420&format=Png&isCircular=false",
+        Method = "GET"
+      })
+
+      if Response.StatusCode == 200 then
+        local Data = HttpService:JSONDecode(Response.Body)
+        if Data.data and Data.data[1] then
+          return Data.data[1].imageUrl
+        end
+      end
+    end
+  end
+  return nil
+end
+
+local function ShouldSendWebhook(Rarity)
+  local MinRarityValue = RARITY_ORDER[MIN_RARITY] or 0
+  local CurrentRarityValue = RARITY_ORDER[Rarity] or 0
+  return CurrentRarityValue >= MinRarityValue
+end
+
+local function SendWebhook(PetName, Rarity, Price, TimeLeft)
+  local RarityColors = {
+    ["Common"] = 8421504,
+    ["Uncommon"] = 65280,
+    ["Rare"] = 255,
+    ["Epic"] = 10494192,
+    ["Legendary"] = 16766720,
+    ["Mythic"] = 16711680,
+    ["Super"] = 16711935,
+  }
+
+  local PetImage = GetPetImage(PetName)
+  local RarityEmoji = RARITY_EMOJIS[Rarity] or "⚪"
+  local JoinLink = "https://starscripts-five.vercel.app/start?placeId=" .. PLACE_ID .. "&gameInstanceId=" .. JOB_ID
+
+  local Embed = {
+    ["embeds"] = { {
+      ["title"] = PetName,
+      ["description"] = "A pet has been found in the server",
+      ["color"] = RarityColors[Rarity] or 8421504,
+      ["thumbnail"] = PetImage and { ["url"] = PetImage } or nil,
+      ["fields"] = {
+        {
+          ["name"] = "Rarity",
+          ["value"] = RarityEmoji .. " " .. Rarity,
+          ["inline"] = true
+        },
+        {
+          ["name"] = "Price",
+          ["value"] = Price,
+          ["inline"] = true
+        },
+        {
+          ["name"] = "Time Remaining",
+          ["value"] = TimeLeft,
+          ["inline"] = true
+        },
+        {
+          ["name"] = "Join Server",
+          ["value"] = "[Click to Join](" .. JoinLink .. ")",
+          ["inline"] = false
+        }
+      },
+      ["footer"] = {
+        ["text"] = "Made by K4F7"
+      }
+    } }
+  }
+
+  request({
+    Url = WEBHOOK_URL,
+    Method = "POST",
+    Headers = {
+      ["Content-Type"] = "application/json"
+    },
+    Body = HttpService:JSONEncode(Embed)
+  })
+
+  print("Sent: " .. PetName .. " | " .. Rarity .. " | " .. Price .. " | " .. TimeLeft)
+end
+
+local function FindPets()
+  local Map = workspace:FindFirstChild("Map")
+  if not Map then return end
+
+  local Spawns = Map:FindFirstChild("WildPetSpawns")
+  if not Spawns then return end
+
+  for _, Pet in ipairs(Spawns:GetChildren()) do
+    local CleanName = CleanPetName(Pet.Name)
+    local Rarity = GetRarity(CleanName)
+    local Price = GetPrice(Pet)
+    local TimeLeft = GetTimeRemaining(Pet)
+
+    if ShouldSendWebhook(Rarity) then
+      SendWebhook(CleanName, Rarity, Price, TimeLeft)
+    end
+    task.wait(1)
+  end
+end
+
+local function ServerHop()
+  local Servers = {}
+  local Response = request({
+    Url = "https://games.roblox.com/v1/games/" .. PLACE_ID .. "/servers/Public?limit=100",
+    Method = "GET"
+  })
+
+  if Response.StatusCode == 200 then
+    local Data = HttpService:JSONDecode(Response.Body)
+    for _, Server in ipairs(Data.data) do
+      if Server.id ~= JOB_ID and Server.playing < Server.maxPlayers then
+        table.insert(Servers, Server.id)
+      end
+    end
+  end
+
+  if #Servers > 0 then
+    local RandomServer = Servers[math.random(1, #Servers)]
+    TeleportService:TeleportToPlaceInstance(PLACE_ID, RandomServer, LocalPlayer)
+  else
+    print("No servers available to hop to")
+  end
+end
+
+FindPets()
+task.wait(5)
+ServerHop()
